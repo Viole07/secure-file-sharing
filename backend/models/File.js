@@ -1,0 +1,17 @@
+const mongoose = require('mongoose');
+
+const FileSchema = new mongoose.Schema({
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  uuid: { type: String, unique: true },
+  filename: String,
+  cloudinaryUrl: String,
+  cloudinaryPublicId: String,
+  expiresAt: Date,
+  maxDownloads: Number,
+  currentDownloads: { type: Number, default: 0 },
+  otpHash: String,
+  recipientEmail: String,
+  isRevoked: { type: Boolean, default: false }
+}, { timestamps: true });
+
+module.exports = mongoose.model('File', FileSchema);
