@@ -1,3 +1,4 @@
+// routes/files.js
 const express = require('express');
 const router = express.Router();
 const cloudinary = require('../utils/cloudinary');
@@ -8,53 +9,61 @@ const File = require('../models/File');
 const sendEmail = require('../utils/sendEmail');
 const QRCode = require('qrcode');
 
-// 🟩 Route 1: Get Signed Upload URL
+// ... (Your /upload-url route remains the same) ...
 router.get('/upload-url', authMiddleware, (req, res) => {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const signature = cloudinary.utils.api_sign_request(
-    {
-      timestamp,
-      folder: 'secure_uploads',
-    },
-    process.env.CLOUDINARY_API_SECRET
-  );
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    {
+      timestamp,
+      folder: 'secure_uploads',
+    },
+    process.env.CLOUDINARY_API_SECRET
+  );
 
-  res.json({
-    timestamp,
-    signature,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    folder: 'secure_uploads',
-  });
+  res.json({
+    timestamp,
+    signature,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    folder: 'secure_uploads',
+  });
 });
 
-// 🟩 Route 2: Save file metadata + send OTP
+
+// 🟩 Route 2: Save file metadata
 router.post('/save', authMiddleware, async (req, res) => {
   try {
     const {
       filename,
+      fileType, // <-- Receive fileType
       cloudinaryUrl,
       cloudinaryPublicId,
       expiresInHours,
       maxDownloads,
-      recipientEmail
+      recipientEmail,
+      otp // <-- Receive OTP from client
     } = req.body;
 
-    const uuid = uuidv4();
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = await bcrypt.hash(otp, 10);
+    if (!otp) {
+      return res.status(400).json({ message: 'OTP is required.' });
+    }
 
-    const file = await File.create({
+    const uuid = uuidv4();
+    const otpHash = await bcrypt.hash(otp, 10); // Hash the received OTP
+
+    const file = new File({
       ownerId: req.userId,
       uuid,
       filename,
+      fileType, // <-- Save fileType
       cloudinaryUrl,
       cloudinaryPublicId,
       expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
       maxDownloads,
       otpHash,
-      recipientEmail
+      recipientEmail,
     });
+    await file.save();
 
     const downloadLink = `http://localhost:3000/download/${uuid}`;
 
@@ -62,7 +71,7 @@ router.post('/save', authMiddleware, async (req, res) => {
       await sendEmail(
         recipientEmail,
         'Your Secure File Download Link',
-        `Use this link: ${downloadLink}\nOTP: ${otp}`
+        `Use this link: ${downloadLink}\nYour OTP is: ${otp}`
       );
       return res.json({ message: 'Link emailed successfully' });
     } else {
@@ -75,72 +84,41 @@ router.post('/save', authMiddleware, async (req, res) => {
   }
 });
 
-
-router.post('/verify-download/:uuid',authMiddleware,  async (req, res) => {
-  const { uuid } = req.params;
-  const { otp } = req.body;
-
+// 🟩 Route 3: Verify and provide download URL
+router.post('/verify-download/:uuid', authMiddleware, async (req, res) => {
   try {
+    const { uuid } = req.params;
+    const { otp } = req.body;
+
     const file = await File.findOne({ uuid });
 
-    if (!file) return res.status(404).json({ message: 'File not found' });
-    if (file.isRevoked) return res.status(403).json({ message: 'Link has been revoked' });
+    if (!file) return res.status(404).json({ message: 'File not found or link is invalid' });
+    if (file.isRevoked) return res.status(403).json({ message: 'This link has been revoked' });
     if (file.expiresAt && new Date() > new Date(file.expiresAt)) {
-      return res.status(410).json({ message: 'Link expired' });
+      return res.status(410).json({ message: 'This link has expired' });
     }
     if (file.currentDownloads >= file.maxDownloads) {
-      return res.status(403).json({ message: 'Download limit reached' });
+      return res.status(403).json({ message: 'The download limit for this file has been reached' });
     }
 
-    const isMatch = await bcrypt.compare(otp.toString(), file.otpHash);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid OTP' });
+    const isMatch = await bcrypt.compare(otp, file.otpHash);
+    if (!isMatch) return res.status(401).json({ message: 'Invalid OTP provided' });
 
-    // ✅ If all good, log + increment
     file.currentDownloads += 1;
     await file.save();
-
-    res.json({ downloadUrl: file.cloudinaryUrl });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Get all files uploaded by logged-in user
-router.get('/mine', authMiddleware, async (req, res) => {
-  try {
-    const files = await File.find({ ownerId: req.userId }).sort({ createdAt: -1 });
-    res.json(files);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-
-// Revoke and delete file by ID
-router.delete('/delete/:id', authMiddleware, async (req, res) => {
-  try {
-    const file = await File.findOne({
-      _id: req.params.id,
-      ownerId: req.userId
+    
+    // Send back the necessary info for decryption
+    res.json({
+        encryptedFile: file.cloudinaryUrl,
+        filename: file.filename,
+        fileType: file.fileType
     });
-
-    if (!file) return res.status(404).json({ message: 'File not found' });
-
-    // Delete from Cloudinary
-    await cloudinary.uploader.destroy(file.cloudinaryPublicId);
-
-    // Mark as revoked
-    file.isRevoked = true;
-    await file.save();
-
-    res.json({ message: 'File revoked and deleted from Cloudinary' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error during verification' });
   }
 });
 
+// ... (Your other routes: /mine, /delete/:id) ...
 
 module.exports = router;

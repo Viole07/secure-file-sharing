@@ -1,9 +1,11 @@
+// backend/models/File.js
 const mongoose = require('mongoose');
 
 const FileSchema = new mongoose.Schema({
   ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   uuid: { type: String, unique: true },
   filename: String,
+  fileType: String, // <-- ADD THIS LINE
   cloudinaryUrl: String,
   cloudinaryPublicId: String,
   expiresAt: Date,
