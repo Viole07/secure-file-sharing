@@ -6,6 +6,7 @@ const FileSchema = new mongoose.Schema({
   uuid: { type: String, unique: true },
   filename: String,
   fileType: String, // <-- ADD THIS LINE
+  resourceType: { type: String, default: 'raw' },
   cloudinaryUrl: String,
   cloudinaryPublicId: String,
   expiresAt: Date,

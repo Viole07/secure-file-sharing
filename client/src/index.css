@@ -1,68 +1,318 @@
+/* --- Global Styles --- */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+  --primary-color: #007bff;
+  --primary-hover: #0056b3;
+  --secondary-color: #6c757d;
+  --secondary-hover: #5a6268;
+  --danger-color: #dc3545;
+  --danger-hover: #c82333;
+  --success-color: #28a745;
+  --bg-color: #f4f7f6;
+  --card-bg: #ffffff;
+  --text-color: #333;
+  --border-color: #dee2e6;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
   margin: 0;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h2, h3 {
+  color: var(--primary-color);
+  margin-top: 0;
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* --- Layout Containers --- */
+.page-container {
+  max-width: 1400px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+
+.login-container {
   display: flex;
-  place-items: center;
-  min-width: 320px;
+  align-items: center;
+  justify-content: center;
   min-height: 100vh;
+  padding: 1rem;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 500px;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+/* --- Navigation Bar --- */
+.navbar {
+  background: var(--card-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 1rem 2rem;
+  margin-bottom: 2.5rem;
+}
+
+.nav-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.nav-brand {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.nav-links a {
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  color: var(--secondary-color);
+  text-decoration: none;
+  transition: color 0.2s;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.nav-links a:hover {
+  color: var(--primary-color);
+}
+
+/* --- Buttons --- */
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  color: #fff;
+  background-color: var(--primary-color);
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+button.btn-secondary {
+  background-color: var(--secondary-color);
+}
+button.btn-secondary:hover:not(:disabled) {
+  background-color: var(--secondary-hover);
+}
+
+button.btn-danger {
+  background-color: var(--danger-color);
+}
+button.btn-danger:hover:not(:disabled) {
+  background-color: var(--danger-hover);
+}
+
+/* --- Forms --- */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="file"] {
+  font-family: inherit;
+  font-size: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="file"] {
+  padding: 0.5rem;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+/* --- Table Styles --- */
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+  box-shadow: var(--shadow);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.file-table th,
+.file-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+.file-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.file-table tbody tr:hover {
+  background-color: #f1f1f1;
+}
+
+/* --- Message & Status Styles --- */
+.message {
+  font-weight: 500;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+}
+.message.success {
+  background-color: #e6f7ec;
+  color: #006421;
+}
+.message.error {
+  background-color: #fdecea;
+  color: var(--danger-color);
+}
+.message.info {
+  background-color: #e6f7ff;
+  color: var(--primary-color);
+}
+
+/* --- Share Details Card (Upload Page) --- */
+.share-details {
+  margin-top: 2rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1.5rem;
+  background: #fdfdfd;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.share-details h3 {
+  margin-top: 0;
+}
+
+.share-details p {
+  font-size: 1rem;
+  word-break: break-all;
+}
+
+.share-details strong {
+  color: var(--text-color);
+}
+
+.share-details .otp-display {
+  color: var(--primary-color);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.share-details img {
+  margin-top: 1rem;
+  max-width: 150px;
+  height: auto;
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  /* 🔽 REMOVED fixed layout to let columns auto-size 🔽 */
+  /* table-layout: fixed; */
+}
+
+.file-table th,
+.file-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  vertical-align: middle;
+  /* 🔽 ADDED this to prevent text from wrapping 🔽 */
+  white-space: nowrap;
+}
+
+/* 🔽 REMOVED all the percentage-based widths 🔽 */
+/* .file-table th:nth-child(1) { width: 35%; } ... etc. */
+
+
+.file-table tr:last-child td {
+  border-bottom: none;
+}
+
+.file-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 🔽 ADJUSTED BUTTON STYLE 🔽 */
+.btn-danger {
+  background-color: #e53e3e; /* Red */
+  color: white;
+  padding: 6px 10px; /* Make padding smaller */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem; /* Make font slightly smaller */
+}
+
+.btn-danger:hover {
+  background-color: #c53030;
 }

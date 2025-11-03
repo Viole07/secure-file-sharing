@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { encryptFileData } from '../aesUtils';
+import Navbar from '../components/Navbar'; // Import Navbar
 
 function Upload() {
   const [file, setFile] = useState(null);
@@ -11,16 +12,22 @@ function Upload() {
   const [otp, setOtp] = useState('');
   const [qr, setQr] = useState('');
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('info'); // info, success, error
   const [isUploading, setIsUploading] = useState(false);
-  const [fullDownloadLink, setFullDownloadLink] = useState(''); // State for the full link
+  const [fullDownloadLink, setFullDownloadLink] = useState('');
 
   const token = localStorage.getItem('token');
 
   const handleUpload = async () => {
-    if (!file) return alert('Please select a file.');
+    if (!file) {
+      setMessage('Please select a file.');
+      setMessageType('error');
+      return;
+    }
     setIsUploading(true);
-    setFullDownloadLink(''); // Reset previous link
+    setFullDownloadLink('');
     setMessage('Generating OTP and encrypting file...');
+    setMessageType('info');
 
     try {
       const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -62,49 +69,74 @@ function Upload() {
       );
 
       if (saveRes.data.qr) {
-        // Construct the full download link for the sender to share
         const link = `${window.location.origin}/download/${saveRes.data.uuid}`;
         setFullDownloadLink(link);
         setOtp(saveRes.data.otp);
         setQr(saveRes.data.qr);
         setMessage('✅ Success! Your file is ready to be shared.');
+        setMessageType('success');
       } else {
         setMessage('✅ Success! Link and OTP sent to the recipient\'s email.');
+        setMessageType('success');
       }
     } catch (err) {
       console.error(err);
       setMessage(`Upload failed: ${err.response?.data?.message || err.message}`);
+      setMessageType('error');
     } finally {
         setIsUploading(false);
     }
   };
 
+  const messageClass = `message ${messageType}`;
+
   return (
-    <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
-      <h2>Secure File Upload</h2>
-      <input type="file" onChange={(e) => setFile(e.target.files[0])} disabled={isUploading} /><br /><br />
-      <input type="number" placeholder="Expiry in hours" value={expiresInHours} onChange={(e) => setExpiresInHours(e.target.value)} disabled={isUploading} /><br /><br />
-      <input type="number" placeholder="Max downloads" value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)} disabled={isUploading} /><br /><br />
-      <input type="email" placeholder="Recipient Email (optional)" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={isUploading} /><br /><br />
-      <button onClick={handleUpload} disabled={!file || isUploading}>
-        {isUploading ? 'Processing...' : 'Upload & Share'}
-      </button>
+    <>
+      <Navbar />
+      <div className="page-container">
+        <div className="card">
+          <h2>Secure File Upload</h2>
+          <div className="form-group">
+            <label htmlFor="file-upload">1. Select your file</label>
+            <input id="file-upload" type="file" onChange={(e) => setFile(e.target.files[0])} disabled={isUploading} />
+          </div>
 
-      <p style={{ fontWeight: 'bold' }}>{message}</p>
+          <div className="form-group">
+            <label htmlFor="expiry">2. Set expiry (in hours)</label>
+            <input id="expiry" type="number" placeholder="Expiry in hours" value={expiresInHours} onChange={(e) => setExpiresInHours(e.target.value)} disabled={isUploading} />
+          </div>
 
-      {fullDownloadLink && (
-        <div style={{ marginTop: '2rem', borderTop: '1px solid #ccc', paddingTop: '1rem', background: '#f5f5f5', padding: '1rem' }}>
-          <h3>Share these details with the recipient:</h3>
-          <p>
-            <strong>Download Link:</strong> <a href={fullDownloadLink} target="_blank" rel="noopener noreferrer">{fullDownloadLink}</a>
-          </p>
-          <p>
-            <strong>One-Time Password (OTP):</strong> <strong style={{color: 'blue', fontSize: '1.2em'}}>{otp}</strong>
-          </p>
-          {qr && <img src={qr} alt="QR Code for download link" />}
+          <div className="form-group">
+            <label htmlFor="max-downloads">3. Set max downloads</label>
+            <input id="max-downloads" type="number" placeholder="Max downloads" value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)} disabled={isUploading} />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="recipient-email">4. Send to email (optional)</label>
+            <input id="recipient-email" type="email" placeholder="Recipient Email (optional)" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={isUploading} />
+          </div>
+
+          <button onClick={handleUpload} disabled={!file || isUploading} style={{ width: '100%' }}>
+            {isUploading ? 'Processing...' : 'Upload & Share'}
+          </button>
+
+          {message && <p className={messageClass}>{message}</p>}
+
+          {fullDownloadLink && (
+            <div className="share-details">
+              <h3>Share these details with the recipient:</h3>
+              <p>
+                <strong>Download Link:</strong> <a href={fullDownloadLink} target="_blank" rel="noopener noreferrer">{fullDownloadLink}</a>
+              </p>
+              <p>
+                <strong>One-Time Password (OTP):</strong> <strong className="otp-display">{otp}</strong>
+              </p>
+              {qr && <img src={qr} alt="QR Code for download link" />}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 

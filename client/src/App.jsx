@@ -3,8 +3,9 @@ import Login from './pages/Login';
 import Upload from './pages/Upload';
 import Download from './pages/Download';
 import Dashboard from './pages/Dashboard';
-import ProtectedRoute from '../components/ProtectedRoute'; // fixed import
-// Removed PrivateRoute if unused
+import ProtectedRoute from '../components/ProtectedRoute'; // This is the correct path from your file
+// Note: Your file had '../components/ProtectedRoute' so I kept it.
+// If Navbar.jsx is in 'components', this should be correct.
 
 export default function App() {
   return (
