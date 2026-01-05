@@ -1,91 +1,66 @@
-// client/src/pages/Download.jsx
 import { useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { decryptFileData } from '../aesUtils';
-import Navbar from '../components/Navbar'; // Import Navbar
+import { decryptFileECC } from '../cryptoUtils';
+import Navbar from '../components/Navbar';
 
 function Download() {
   const { uuid } = useParams();
-  const [otp, setOtp] = useState('');
-  const [message, setMessage] = useState('Please enter the OTP to verify your download.');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [messageType, setMessageType] = useState('info'); // info, success, error
+  const [status, setStatus] = useState('Checking authorization...');
+  const token = localStorage.getItem('token');
 
-  const handleVerifyAndDownload = async () => {
-    if (!otp) {
-      setMessage('❌ OTP cannot be empty.');
-      setMessageType('error');
-      return;
-    }
-    setIsVerifying(true);
-    setMessage('Verifying OTP and fetching file...');
-    setMessageType('info');
-
+  const startDownload = async () => {
     try {
-      const token = localStorage.getItem("token");
-
+      // 1. Fetch File Metadata & Ephemeral Point
       const res = await axios.post(
         `http://localhost:5000/api/files/verify-download/${uuid}`,
-        { otp },
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const { encryptedFile, filename, fileType } = res.data;
+      const { encryptedFile, filename, fileType, senderEphemeralPublicKey, iv } = res.data;
+      setStatus("Downloading encrypted segment...");
 
-      setMessage('Downloading and decrypting file... Please wait.');
-      setMessageType('info');
+      // 2. Fetch Ciphertext from Cloudinary
+      const cloudRes = await axios.get(encryptedFile, { responseType: 'arraybuffer' });
+      
+      // 3. Retrieve Identity Private Key from session/local storage
+      // In this prototype, we assume it was stored during login
+      const myEmail = JSON.parse(atob(token.split('.')[1])).email;
+      const myKeys = JSON.parse(localStorage.getItem(`keys_${myEmail}`));
 
-      const response = await axios.get(encryptedFile, { responseType: 'blob' });
-      const encryptedBlob = response.data;
+      if (!myKeys) throw new Error("Private key not found in this browser.");
 
-      const decryptedBlob = await decryptFileData(encryptedBlob, otp, fileType);
+      setStatus("Performing ECDH Handshake & Decrypting...");
+      const decryptedBuffer = await decryptFileECC(
+        cloudRes.data, 
+        senderEphemeralPublicKey, 
+        myKeys.privateKey, 
+        iv
+      );
 
-      const downloadLink = document.createElement('a');
-      downloadLink.href = URL.createObjectURL(decryptedBlob);
-      downloadLink.download = filename;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-
-      setMessage('✅ Download successful!');
-      setMessageType('success');
-
+      // 4. Trigger Save
+      const blob = new Blob([decryptedBuffer], { type: fileType });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      
+      setStatus("✅ Success!");
     } catch (err) {
       console.error(err);
-      setMessage(`❌ Error: ${err.response?.data?.message || 'Invalid OTP or expired link'}`);
-      setMessageType('error');
-    } finally {
-      setIsVerifying(false);
+      setStatus("❌ Access Denied: " + (err.response?.data?.message || "Check your credentials."));
     }
   };
-
-  // Determine message class based on type
-  const messageClass = `message ${messageType}`;
 
   return (
     <>
       <Navbar />
       <div className="page-container">
-        <div className="card" style={{ maxWidth: '550px', margin: 'auto', textAlign: 'center' }}>
-          <h2>Secure File Download</h2>
-          <p>A file has been shared with you securely. Please enter the One-Time Password you received to download it.</p>
-          
-          <div className="form-group" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-            <input
-              type="text"
-              placeholder="Enter 6-digit OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              style={{ width: '200px', textAlign: 'center' }}
-              disabled={isVerifying}
-            />
-            <button onClick={handleVerifyAndDownload} disabled={isVerifying}>
-              {isVerifying ? 'Processing...' : 'Verify & Download'}
-            </button>
-          </div>
-
-          <p className={messageClass}>{message}</p>
+        <div className="card">
+          <h2>Secure Download</h2>
+          <p>{status}</p>
+          <button onClick={startDownload}>Attempt Decryption</button>
         </div>
       </div>
     </>
