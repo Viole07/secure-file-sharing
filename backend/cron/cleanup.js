@@ -1,16 +1,15 @@
-// backend/cron/cleanup.js
 const cron = require('node-cron');
 const File = require('../models/File');
 const cloudinary = require('../utils/cloudinary');
 
 const startCleanupJob = () => {
-  // Run every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
-    console.log('[CRON] Checking for expired or overused files...');
-
+  // Run every 10 minutes to ensure "Right to be Forgotten"
+  cron.schedule('*/10 * * * *', async () => {
+    console.log('[SHREDDER] Scanning for expired keys...');
     try {
       const now = new Date();
-      const files = await File.find({
+      // Find files that are expired OR over limit OR manually revoked but still on Cloudinary
+      const filesToShred = await File.find({
         isRevoked: false,
         $or: [
           { expiresAt: { $lte: now } },
@@ -18,33 +17,20 @@ const startCleanupJob = () => {
         ]
       });
 
-      if (files.length === 0) {
-        console.log('[CRON] No files to clean up at this time.');
-        return;
+      for (const file of filesToShred) {
+        // 1. Delete the blob from Cloudinary
+        await cloudinary.uploader.destroy(file.cloudinaryPublicId, { resource_type: 'raw' });
+        
+        // 2. Mark as revoked and delete metadata (The Crypto-Shred)
+        file.isRevoked = true;
+        file.senderEphemeralPublicKey = null; // Remove the mathematical path
+        file.iv = null; 
+        await file.save();
+        
+        console.log(`[✔] Shredded: ${file.filename}`);
       }
-
-      console.log(`[CRON] Found ${files.length} file(s) to process.`);
-
-      for (const file of files) {
-        try {
-          // Use the stored resourceType (defaulting to 'raw' if not present)
-          const resourceType = file.resourceType || 'raw';
-          
-          await cloudinary.uploader.destroy(file.cloudinaryPublicId, {
-            resource_type: resourceType // <-- USE THE CORRECT RESOURCE TYPE
-          });
-          
-          file.isRevoked = true;
-          await file.save();
-          console.log(`[✔] Deleted file ${file.filename} (${file.cloudinaryPublicId}) from Cloudinary`);
-        } catch (err) {
-          console.error(`[✘] Failed to delete ${file.filename}:`, err.message);
-        }
-      }
-
-      console.log(`[CRON] Cleanup completed.`);
     } catch (err) {
-      console.error('[CRON ERROR] Failed to run cleanup:', err.message);
+      console.error('[SHREDDER ERROR]', err.message);
     }
   });
 };

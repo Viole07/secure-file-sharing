@@ -6,6 +6,8 @@ import Navbar from '../components/Navbar';
 function Upload() {
   const [file, setFile] = useState(null);
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [expiresInHours, setExpiresInHours] = useState(24);
+  const [maxDownloads, setMaxDownloads] = useState(3);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [downloadLink, setDownloadLink] = useState('');
@@ -19,23 +21,19 @@ function Upload() {
     setMessage("Searching for recipient's identity...");
 
     try {
-      // 1. Fetch Recipient's Public Key
       const { data: recipientData } = await axios.get(
         `http://localhost:5000/api/files/recipient-key/${recipientEmail}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setMessage("Encrypting file with ECC + AES-GCM...");
-      // 2. Perform Browser-Side Encryption
+      setMessage("Encrypting file browser-side (AES-256-GCM)...");
       const { ciphertext, iv, senderEphemeralPublicKey } = await encryptFileECC(file, recipientData.publicKey);
 
-      // 3. Get Signed Cloudinary URL
       const { data: uploadParams } = await axios.get(
         'http://localhost:5000/api/files/upload-url',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // 4. Upload Encrypted Blob
       const formData = new FormData();
       formData.append('file', new Blob([ciphertext]));
       formData.append('timestamp', uploadParams.timestamp);
@@ -43,12 +41,13 @@ function Upload() {
       formData.append('signature', uploadParams.signature);
       formData.append('folder', uploadParams.folder);
 
+      setMessage("Uploading encrypted blob...");
       const cloudRes = await axios.post(
         `https://api.cloudinary.com/v1_1/${uploadParams.cloudName}/raw/upload`,
         formData
       );
 
-      // 5. Save Metadata (Metadata is the "Shredding" path)
+      setMessage("Finalizing policy settings...");
       const saveRes = await axios.post(
         'http://localhost:5000/api/files/save',
         {
@@ -56,8 +55,8 @@ function Upload() {
           fileType: file.type,
           cloudinaryUrl: cloudRes.data.secure_url,
           cloudinaryPublicId: cloudRes.data.public_id,
-          expiresInHours: 24,
-          maxDownloads: 5,
+          expiresInHours,
+          maxDownloads,
           recipientPublicKey: recipientData.publicKey,
           senderEphemeralPublicKey,
           iv
@@ -66,9 +65,8 @@ function Upload() {
       );
 
       setDownloadLink(saveRes.data.downloadLink);
-      setMessage("✅ Secure link generated! No OTP needed.");
+      setMessage("✅ Shredding policy active. Secure link generated!");
     } catch (err) {
-      console.error(err);
       setMessage("Error: " + (err.response?.data?.message || "Upload failed."));
     } finally {
       setIsUploading(false);
@@ -80,20 +78,34 @@ function Upload() {
       <Navbar />
       <div className="page-container">
         <div className="card">
-          <h2>Zero-Knowledge Upload</h2>
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} disabled={isUploading} />
-          <input 
-            type="email" 
-            placeholder="Recipient Email" 
-            value={recipientEmail} 
-            onChange={(e) => setRecipientEmail(e.target.value)} 
-            disabled={isUploading} 
-          />
-          <button onClick={handleUpload} disabled={isUploading}>
-            {isUploading ? "Processing..." : "Encrypt & Send"}
+          <h2>Zero-Knowledge Secure Share</h2>
+          <div className="form-group">
+            <label>Select File</label>
+            <input type="file" onChange={(e) => setFile(e.target.files[0])} disabled={isUploading} />
+          </div>
+          <div className="form-group">
+            <label>Recipient Email</label>
+            <input type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={isUploading} />
+          </div>
+          <div className="form-group" style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ flex: 1 }}>
+              <label>Expiry (Hours)</label>
+              <input type="number" value={expiresInHours} onChange={(e) => setExpiresInHours(e.target.value)} disabled={isUploading} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label>Max Downloads</label>
+              <input type="number" value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)} disabled={isUploading} />
+            </div>
+          </div>
+          <button onClick={handleUpload} disabled={isUploading} style={{ width: '100%' }}>
+            {isUploading ? "Protecting Data..." : "Encrypt & Upload"}
           </button>
           <p className="message">{message}</p>
-          {downloadLink && <p><strong>Share this link:</strong> {downloadLink}</p>}
+          {downloadLink && (
+            <div className="share-details">
+              <strong>Share Link:</strong> <a href={downloadLink}>{downloadLink}</a>
+            </div>
+          )}
         </div>
       </div>
     </>

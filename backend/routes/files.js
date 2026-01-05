@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const File = require('../models/File');
 const User = require('../models/User');
 
-// Get Recipient Public Key by Email
+// 1. Get Recipient Public Key by Email
 router.get('/recipient-key/:email', authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ email: req.params.email });
@@ -17,19 +17,7 @@ router.get('/recipient-key/:email', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/upload-url', authMiddleware, (req, res) => {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder: 'secure_uploads' },
-    process.env.CLOUDINARY_API_SECRET
-  );
-  res.json({
-    timestamp, signature, folder: 'secure_uploads',
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-  });
-});
-
+// 2. Save metadata with Policy Enforcement
 router.post('/save', authMiddleware, async (req, res) => {
   try {
     const { 
@@ -41,28 +29,41 @@ router.post('/save', authMiddleware, async (req, res) => {
     const uuid = uuidv4();
     const file = new File({
       ownerId: req.userId,
-      uuid, filename, fileType, cloudinaryUrl, cloudinaryPublicId,
-      expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
-      maxDownloads,
+      uuid, 
+      filename, 
+      fileType, 
+      cloudinaryUrl, 
+      cloudinaryPublicId,
+      // Condition 1: Expiry based on user input
+      expiresAt: new Date(Date.now() + parseInt(expiresInHours) * 60 * 60 * 1000),
+      // Condition 2: Download Limit
+      maxDownloads: parseInt(maxDownloads),
       senderEphemeralPublicKey,
       recipientPublicKey,
       iv
     });
+    
     await file.save();
     res.json({ uuid, downloadLink: `http://localhost:5173/download/${uuid}` });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error saving metadata' });
   }
 });
 
+// 3. Verify Download with 3-Condition Logic
 router.post('/verify-download/:uuid', authMiddleware, async (req, res) => {
   try {
     const file = await File.findOne({ uuid: req.params.uuid });
-    if (!file || file.isRevoked) return res.status(404).json({ message: 'Invalid or revoked link' });
+    if (!file || file.isRevoked) return res.status(404).json({ message: 'Invalid or shredded link' });
     
-    // Check expiry and download limits [cite: 30, 31]
-    if (new Date() > file.expiresAt || file.currentDownloads >= file.maxDownloads) {
-        return res.status(403).json({ message: 'Link expired or limit reached' });
+    // Check Expiry
+    if (new Date() > file.expiresAt) {
+        return res.status(403).json({ message: 'This file has expired and been shredded.' });
+    }
+
+    // Check Download Limit
+    if (file.currentDownloads >= file.maxDownloads) {
+        return res.status(403).json({ message: 'Download limit reached. Access shredded.' });
     }
 
     file.currentDownloads += 1;
@@ -80,5 +81,33 @@ router.post('/verify-download/:uuid', authMiddleware, async (req, res) => {
   }
 });
 
-// Reuse existing /mine and /delete/:id routes...
+// 4. Manual Revoke (User triggered shredding)
+router.delete('/delete/:id', authMiddleware, async (req, res) => {
+  try {
+    const file = await File.findOne({ _id: req.params.id, ownerId: req.userId });
+    if (!file) return res.status(404).json({ message: 'File not found' });
+
+    await cloudinary.uploader.destroy(file.cloudinaryPublicId, { resource_type: 'raw' });
+
+    file.isRevoked = true;
+    file.senderEphemeralPublicKey = null; // Key Metadata shredded [cite: 29]
+    file.iv = null;
+    await file.save();
+
+    res.json({ message: 'File shredded successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error during manual shredding' });
+  }
+});
+
+// 5. Fetch user's files for Dashboard
+router.get('/mine', authMiddleware, async (req, res) => {
+  try {
+    const files = await File.find({ ownerId: req.userId }).sort({ createdAt: -1 });
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
